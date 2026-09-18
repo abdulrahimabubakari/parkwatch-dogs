@@ -5,6 +5,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import Dict
 from dotenv import load_dotenv
 import redis.asyncio as aioredis
+from api.permits import check_plate, log_violation
 
 load_dotenv()
 
@@ -67,9 +68,42 @@ async def officer_socket(websocket: WebSocket, officer_id: str):
     await manager.connect(officer_id, websocket)
     try:
         while True:
-            data = await websocket.receive_text()
-            print(f"Received from {officer_id}: {data}")
-            payload = json.dumps({"from": officer_id, "message": data})
-            await redis_client.publish(CHANNEL, payload)
+            raw = await websocket.receive_text()
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send_text(json.dumps({"error": "invalid_json"}))
+                continue
+
+            action = data.get("action")
+
+            if action == "check_plate":
+                plate = data.get("plate")
+                zone_id = data.get("zone_id")
+                result = check_plate(plate, zone_id)
+                print(f"[{officer_id}] checked {plate} in zone {zone_id}: {result}")
+
+                if not result["valid"]:
+                    violation = log_violation(
+                        plate=plate,
+                        zone_id=zone_id,
+                        officer_id=officer_id,
+                        violation_type=result["reason"],
+                    )
+                    event = {
+                        "type": "violation.created",
+                        "officer_id": officer_id,
+                        "plate": plate,
+                        "zone_id": zone_id,
+                        "reason": result["reason"],
+                        **violation,
+                    }
+                    await redis_client.publish(CHANNEL, json.dumps(event))
+                else:
+                    # send the valid result back to just this officer, not a broadcast
+                    await websocket.send_text(json.dumps({"type": "check_result", **result}))
+            else:
+                await websocket.send_text(json.dumps({"error": "unknown_action"}))
+
     except WebSocketDisconnect:
         manager.disconnect(officer_id)
