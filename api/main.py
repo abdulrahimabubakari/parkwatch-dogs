@@ -1,6 +1,7 @@
 import os
 import json
 import asyncio
+from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import Dict
 from dotenv import load_dotenv
@@ -104,6 +105,23 @@ async def officer_socket(websocket: WebSocket, officer_id: str):
                         await redis_client.publish(CHANNEL, json.dumps(event))
                 else:
                     await websocket.send_text(json.dumps({"type": "check_result", **result}))
+
+            elif action == "location_update":
+                lat = data.get("lat")
+                lng = data.get("lng")
+                event = {
+                    "type": "location.update",
+                    "officer_id": officer_id,
+                    "lat": lat,
+                    "lng": lng,
+                    "timestamp": datetime.now().isoformat(),
+                }
+                try:
+                    await redis_client.publish(CHANNEL, json.dumps(event))
+                except Exception as e:
+                    print(f"Redis publish failed, retrying once: {e}")
+                    await redis_client.publish(CHANNEL, json.dumps(event))
+
             else:
                 await websocket.send_text(json.dumps({"error": "unknown_action"}))
 
