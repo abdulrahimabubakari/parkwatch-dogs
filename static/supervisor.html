@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ParkWatch — Supervisor</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 16px; }
+  h2 { margin-bottom: 4px; }
+  .connected { color: green; } .disconnected { color: red; }
+  .section { margin-top: 24px; }
+  .violation-item { background: #fbd9d9; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; }
+  .officer-item { background: #eef2f7; padding: 8px; border-radius: 6px; margin-bottom: 6px; font-size: 14px; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+  <h2>ParkWatch — Supervisor Dashboard</h2>
+  <p>Status: <span id="conn-status" class="disconnected">disconnected</span></p>
+  <button onclick="connect()">Connect</button>
+
+  <div class="section">
+    <h3>Live Officer Locations</h3>
+    <div id="officers"></div>
+  </div>
+
+  <div class="section">
+    <h3>Live Violation Feed</h3>
+    <div id="violations"></div>
+  </div>
+
+<script>
+let ws = null;
+const officerLocations = {};
+
+function connect() {
+  ws = new WebSocket(`ws://127.0.0.1:8001/ws/officer/supervisor_dashboard`);
+
+  ws.onopen = () => {
+    document.getElementById('conn-status').textContent = 'connected';
+    document.getElementById('conn-status').className = 'connected';
+  };
+
+  ws.onclose = () => {
+    document.getElementById('conn-status').textContent = 'disconnected';
+    document.getElementById('conn-status').className = 'disconnected';
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.type === 'location.update') {
+      officerLocations[data.officer_id] = data;
+      renderOfficers();
+    }
+
+    if (data.type === 'violation.created') {
+      const div = document.getElementById('violations');
+      const item = document.createElement('div');
+      item.className = 'violation-item';
+      item.textContent = `${new Date(data.created_at).toLocaleTimeString()} — Plate ${data.plate}, Zone ${data.zone_id} — ${data.reason}${data.duplicate ? ' (duplicate)' : ''} — flagged by ${data.officer_id}`;
+      div.prepend(item);
+    }
+  };
+}
+
+function renderOfficers() {
+  const div = document.getElementById('officers');
+  div.innerHTML = '';
+  for (const id in officerLocations) {
+    const loc = officerLocations[id];
+    const item = document.createElement('div');
+    item.className = 'officer-item';
+    item.innerHTML = `<span>${id}</span><span>${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)} — ${new Date(loc.timestamp).toLocaleTimeString()}</span>`;
+    div.appendChild(item);
+  }
+}
+</script>
+</body>
+</html>
