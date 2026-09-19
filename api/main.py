@@ -7,10 +7,12 @@ from typing import Dict
 from dotenv import load_dotenv
 import redis.asyncio as aioredis
 from api.permits import check_plate_and_log_violation
+from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
 
 app = FastAPI(title="ParkWatch Real-Time API")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 REDIS_URL = os.getenv("REDIS_URL")
 CHANNEL = "parkwatch_events"
