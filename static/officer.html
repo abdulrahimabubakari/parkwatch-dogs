@@ -34,7 +34,8 @@ let ws = null;
 
 function connect() {
   const officerId = document.getElementById('officer-id').value;
-  ws = new WebSocket(`ws://127.0.0.1:8000/ws/officer/${officerId}`);
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/officer/${officerId}`);
 
   ws.onopen = () => {
     document.getElementById('conn-status').textContent = 'connected';
