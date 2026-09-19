@@ -5,7 +5,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import Dict
 from dotenv import load_dotenv
 import redis.asyncio as aioredis
-from api.permits import check_plate, log_violation
+from api.permits import check_plate_and_log_violation
 
 load_dotenv()
 
@@ -36,7 +36,13 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
-redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
+redis_client = aioredis.from_url(
+    REDIS_URL,
+    decode_responses=True,
+    health_check_interval=30,   # periodically pings Redis to detect dead connections early
+    socket_keepalive=True,
+    retry_on_timeout=True,
+)
 
 
 async def redis_listener():
@@ -80,27 +86,23 @@ async def officer_socket(websocket: WebSocket, officer_id: str):
             if action == "check_plate":
                 plate = data.get("plate")
                 zone_id = data.get("zone_id")
-                result = check_plate(plate, zone_id)
+                result = check_plate_and_log_violation(plate, zone_id, officer_id)
                 print(f"[{officer_id}] checked {plate} in zone {zone_id}: {result}")
 
                 if not result["valid"]:
-                    violation = log_violation(
-                        plate=plate,
-                        zone_id=zone_id,
-                        officer_id=officer_id,
-                        violation_type=result["reason"],
-                    )
                     event = {
                         "type": "violation.created",
                         "officer_id": officer_id,
                         "plate": plate,
                         "zone_id": zone_id,
-                        "reason": result["reason"],
-                        **violation,
+                        **result,
                     }
-                    await redis_client.publish(CHANNEL, json.dumps(event))
+                    try:
+                        await redis_client.publish(CHANNEL, json.dumps(event))
+                    except Exception as e:
+                        print(f"Redis publish failed, retrying once: {e}")
+                        await redis_client.publish(CHANNEL, json.dumps(event))
                 else:
-                    # send the valid result back to just this officer, not a broadcast
                     await websocket.send_text(json.dumps({"type": "check_result", **result}))
             else:
                 await websocket.send_text(json.dumps({"error": "unknown_action"}))
