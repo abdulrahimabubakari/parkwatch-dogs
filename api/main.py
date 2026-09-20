@@ -89,7 +89,7 @@ async def officer_socket(websocket: WebSocket, officer_id: str):
             if action == "check_plate":
                 plate = data.get("plate")
                 zone_id = data.get("zone_id")
-                result = check_plate_and_log_violation(plate, zone_id, officer_id)
+                result = await asyncio.to_thread(check_plate_and_log_violation, plate, zone_id, officer_id)
                 print(f"[{officer_id}] checked {plate} in zone {zone_id}: {result}")
 
                 if not result["valid"]:
