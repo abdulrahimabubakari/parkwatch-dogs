@@ -1,85 +1,203 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>ParkWatch — Officer</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ParkWatch — Officer Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 420px; margin: 40px auto; padding: 0 16px; }
-  input, button { font-size: 16px; padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; }
-  button { background: #1a1a1a; color: white; border: none; cursor: pointer; }
-  #status { padding: 12px; border-radius: 6px; margin-top: 12px; font-weight: bold; }
-  .valid { background: #d4f7dc; color: #1a7a34; }
-  .violation { background: #fbd9d9; color: #b3261e; }
-  #log { margin-top: 16px; font-size: 13px; color: #555; max-height: 200px; overflow-y: auto; }
-  .connected { color: green; } .disconnected { color: red; }
+  :root{
+    --bg: #131A22;
+    --panel: #1B242D;
+    --panel-raised: #212C36;
+    --rule: #2A3742;
+    --text: #E4E9ED;
+    --text-muted: #7E8C98;
+    --text-faint: #566270;
+    --teal: #3FA98E;
+    --teal-dim: #2A6E5C;
+    --amber: #E2725B;
+    --amber-dim: #8C4736;
+    --font-ui: 'Inter', -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background: var(--bg); color: var(--text);
+    font-family: var(--font-ui); -webkit-font-smoothing: antialiased;
+  }
+  .wrap{ max-width: 480px; margin: 0 auto; min-height: 100vh; display:flex; flex-direction:column; }
+
+  /* status bar */
+  .statusbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 14px 20px; border-bottom: 1px solid var(--rule); background: var(--panel);
+  }
+  .brand{ font-weight: 700; font-size: 15px; letter-spacing: -0.2px; }
+  .brand span{ color: var(--text-faint); font-weight: 500; }
+  .conn{ display:flex; align-items:center; gap: 7px; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+  .dot{ width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex-shrink:0; }
+  .dot.live{ background: var(--teal); box-shadow: 0 0 0 0 rgba(63,169,142,0.6); animation: pulse 1.8s infinite; }
+  @keyframes pulse{
+    0%{ box-shadow: 0 0 0 0 rgba(63,169,142,0.55); }
+    70%{ box-shadow: 0 0 0 6px rgba(63,169,142,0); }
+    100%{ box-shadow: 0 0 0 0 rgba(63,169,142,0); }
+  }
+
+  .section{ padding: 20px; border-bottom: 1px solid var(--rule); }
+  .label{ font-size: 12px; color: var(--text-faint); margin-bottom: 8px; font-weight: 500; }
+
+  input{
+    width: 100%; background: var(--panel-raised); border: 1px solid var(--rule); color: var(--text);
+    font-family: var(--font-mono); font-size: 14px; padding: 10px 12px; border-radius: 3px;
+    margin-bottom: 10px; outline: none;
+  }
+  input:focus{ border-color: var(--teal-dim); }
+
+  button{
+    width: 100%; padding: 11px; border-radius: 3px; border: none; cursor: pointer;
+    font-family: var(--font-ui); font-weight: 600; font-size: 14px;
+  }
+  .btn-primary{ background: var(--teal); color: #0E1A17; }
+  .btn-primary:hover{ background: #4DBFA0; }
+  .btn-secondary{ background: transparent; border: 1px solid var(--rule); color: var(--text); }
+  .btn-secondary:hover{ border-color: var(--text-faint); }
+
+  .row2{ display:flex; gap: 10px; }
+  .row2 input{ margin-bottom: 0; }
+
+  /* result panel */
+  #result-panel{ display:none; border-radius: 3px; padding: 16px; margin-top: 4px; border: 1px solid; }
+  #result-panel.valid{ background: rgba(63,169,142,0.08); border-color: var(--teal-dim); }
+  #result-panel.violation{ background: rgba(226,114,91,0.08); border-color: var(--amber-dim); }
+  .result-tag{ font-family: var(--font-mono); font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  #result-panel.valid .result-tag{ color: var(--teal); }
+  #result-panel.violation .result-tag{ color: var(--amber); }
+  .result-detail{ font-size: 14px; color: var(--text); }
+  .result-plate{ font-family: var(--font-mono); color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+
+  /* log */
+  .log-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
+  #log{ flex:1; overflow-y:auto; font-family: var(--font-mono); font-size: 12px; }
+  .log-line{ padding: 8px 0; border-bottom: 1px solid var(--rule); color: var(--text-muted); line-height: 1.5; }
+  .log-time{ color: var(--text-faint); margin-right: 8px; }
+  .log-line.evt-violation .log-tag{ color: var(--amber); }
+  .log-line.evt-valid .log-tag{ color: var(--teal); }
+  .log-line.evt-location .log-tag{ color: var(--text-faint); }
+  .log-tag{ font-weight: 600; margin-right: 6px; }
 </style>
 </head>
 <body>
-  <h2>ParkWatch — Officer</h2>
-  <p>Status: <span id="conn-status" class="disconnected">disconnected</span></p>
+<div class="wrap">
 
-  <input id="officer-id" placeholder="Officer ID" value="officer1">
-  <button onclick="connect()">Connect</button>
+  <div class="statusbar">
+    <div class="brand">ParkWatch <span>/ Officer</span></div>
+    <div class="conn"><span class="dot" id="dot"></span><span id="conn-text">offline</span></div>
+  </div>
 
-  <hr>
+  <div class="section">
+    <div class="label">Officer ID</div>
+    <div class="row2">
+      <input id="officer-id" placeholder="e.g. officer1" value="officer1">
+      <button class="btn-secondary" style="width:auto; padding: 0 18px;" onclick="connect()">Connect</button>
+    </div>
+  </div>
 
-  <input id="plate" placeholder="Plate number" value="NBY3978">
-  <input id="zone" placeholder="Zone ID" value="1">
-  <button onclick="checkPlate()">Check Plate</button>
+  <div class="section">
+    <div class="label">Plate Check</div>
+    <input id="plate" placeholder="Plate number" value="NBY3978">
+    <input id="zone" placeholder="Zone ID" value="1">
+    <button class="btn-primary" onclick="checkPlate()">Run check</button>
 
-  <div id="status"></div>
-  <div id="log"></div>
+    <div id="result-panel">
+      <div class="result-tag" id="result-tag"></div>
+      <div class="result-detail" id="result-detail"></div>
+      <div class="result-plate" id="result-plate"></div>
+    </div>
+  </div>
+
+  <div class="section" style="flex:1; display:flex; flex-direction:column;">
+    <div class="log-header">
+      <div class="label" style="margin:0;">Activity log</div>
+    </div>
+    <div id="log"></div>
+  </div>
+
+</div>
 
 <script>
 let ws = null;
 
-function connect() {
-  const officerId = document.getElementById('officer-id').value;
+function setConn(state){
+  const dot = document.getElementById('dot');
+  const text = document.getElementById('conn-text');
+  if(state === 'live'){
+    dot.className = 'dot live'; text.textContent = 'connected';
+  } else {
+    dot.className = 'dot'; text.textContent = 'offline';
+  }
+}
+
+function connect(){
+  const officerId = document.getElementById('officer-id').value.trim();
+  if(!officerId) return;
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/officer/${officerId}`);
+  ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/officer/${officerId}`);
 
-  ws.onopen = () => {
-    document.getElementById('conn-status').textContent = 'connected';
-    document.getElementById('conn-status').className = 'connected';
-    log('Connected as ' + officerId);
-  };
-
-  ws.onclose = () => {
-    document.getElementById('conn-status').textContent = 'disconnected';
-    document.getElementById('conn-status').className = 'disconnected';
-    log('Disconnected');
-  };
+  ws.onopen = () => { setConn('live'); addLog('system', `Connected as ${officerId}`); };
+  ws.onclose = () => { setConn('offline'); addLog('system', 'Disconnected'); };
 
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    log('Received: ' + JSON.stringify(data));
 
-    const statusDiv = document.getElementById('status');
-    if (data.type === 'check_result' && data.valid) {
-      statusDiv.className = 'valid';
-      statusDiv.textContent = '✅ Valid permit';
-    } else if (data.type === 'violation.created') {
-      statusDiv.className = 'violation';
-      statusDiv.textContent = `🚫 Violation: ${data.reason}${data.duplicate ? ' (duplicate)' : ''}`;
+    if(data.type === 'check_result' || data.type === 'violation.created'){
+      const panel = document.getElementById('result-panel');
+      const tag = document.getElementById('result-tag');
+      const detail = document.getElementById('result-detail');
+      const plateEl = document.getElementById('result-plate');
+      panel.style.display = 'block';
+
+      if(data.valid){
+        panel.className = 'valid';
+        tag.textContent = 'Valid permit';
+        detail.textContent = `Permit #${data.permit_id} confirmed for this zone.`;
+        addLog('valid', `Valid — ${document.getElementById('plate').value}`);
+      } else {
+        panel.className = 'violation';
+        tag.textContent = data.duplicate ? 'Violation (already logged)' : 'Violation flagged';
+        detail.textContent = data.reason.replace(/_/g, ' ');
+        plateEl.textContent = `Plate ${data.plate || document.getElementById('plate').value} · Violation #${data.violation_id}`;
+        addLog('violation', `${data.reason.replace(/_/g, ' ')} — ${data.plate || ''}`);
+      }
+    }
+
+    if(data.type === 'location.update'){
+      addLog('location', `GPS ${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}`);
     }
   };
 }
 
-function checkPlate() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Connect first'); return; }
-  const plate = document.getElementById('plate').value;
+function checkPlate(){
+  if(!ws || ws.readyState !== WebSocket.OPEN){ alert('Connect first'); return; }
+  const plate = document.getElementById('plate').value.trim();
   const zone = parseInt(document.getElementById('zone').value);
   ws.send(JSON.stringify({ action: 'check_plate', plate, zone_id: zone }));
-  log('Sent check for ' + plate);
+  addLog('system', `Checking ${plate} · zone ${zone}`);
 }
 
-function log(msg) {
-  const logDiv = document.getElementById('log');
-  logDiv.innerHTML = `<div>${new Date().toLocaleTimeString()} — ${msg}</div>` + logDiv.innerHTML;
+function addLog(type, msg){
+  const log = document.getElementById('log');
+  const time = new Date().toLocaleTimeString([], { hour12:false });
+  const tagMap = { violation: 'VIOLATION', valid: 'VALID', location: 'GPS', system: 'SYS' };
+  const line = document.createElement('div');
+  line.className = `log-line evt-${type}`;
+  line.innerHTML = `<span class="log-time">${time}</span><span class="log-tag">${tagMap[type]}</span>${msg}`;
+  log.prepend(line);
 }
 
-// send a location update every 8 seconds once connected (simulated GPS)
 setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
+  if(ws && ws.readyState === WebSocket.OPEN){
     const lat = 38.9218 + (Math.random() - 0.5) * 0.002;
     const lng = -77.0195 + (Math.random() - 0.5) * 0.002;
     ws.send(JSON.stringify({ action: 'location_update', lat, lng }));

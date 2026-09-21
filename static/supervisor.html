@@ -1,77 +1,182 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>ParkWatch — Supervisor</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ParkWatch — Supervisor Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 16px; }
-  h2 { margin-bottom: 4px; }
-  .connected { color: green; } .disconnected { color: red; }
-  .section { margin-top: 24px; }
-  .violation-item { background: #fbd9d9; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; }
-  .officer-item { background: #eef2f7; padding: 8px; border-radius: 6px; margin-bottom: 6px; font-size: 14px; display: flex; justify-content: space-between; }
+  :root{
+    --bg: #131A22;
+    --panel: #1B242D;
+    --panel-raised: #212C36;
+    --rule: #2A3742;
+    --text: #E4E9ED;
+    --text-muted: #7E8C98;
+    --text-faint: #566270;
+    --teal: #3FA98E;
+    --teal-dim: #2A6E5C;
+    --amber: #E2725B;
+    --amber-dim: #8C4736;
+    --font-ui: 'Inter', -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background: var(--bg); color: var(--text);
+    font-family: var(--font-ui); -webkit-font-smoothing: antialiased;
+  }
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 16px 28px; border-bottom: 1px solid var(--rule); background: var(--panel);
+  }
+  .brand{ font-weight: 700; font-size: 16px; letter-spacing: -0.2px; }
+  .brand span{ color: var(--text-faint); font-weight: 500; }
+  .conn{ display:flex; align-items:center; gap: 7px; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+  .dot{ width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex-shrink:0; }
+  .dot.live{ background: var(--teal); box-shadow: 0 0 0 0 rgba(63,169,142,0.6); animation: pulse 1.8s infinite; }
+  @keyframes pulse{
+    0%{ box-shadow: 0 0 0 0 rgba(63,169,142,0.55); }
+    70%{ box-shadow: 0 0 0 6px rgba(63,169,142,0); }
+    100%{ box-shadow: 0 0 0 0 rgba(63,169,142,0); }
+  }
+  button.btn-secondary{
+    background: transparent; border: 1px solid var(--rule); color: var(--text);
+    font-family: var(--font-ui); font-weight: 600; font-size: 13px; padding: 8px 16px; border-radius: 3px; cursor:pointer;
+  }
+  button.btn-secondary:hover{ border-color: var(--text-faint); }
+
+  .stats{ display:flex; gap: 1px; background: var(--rule); border-bottom: 1px solid var(--rule); }
+  .stat{ flex:1; background: var(--panel); padding: 16px 28px; }
+  .stat-label{ font-size: 11px; color: var(--text-faint); margin-bottom: 4px; }
+  .stat-value{ font-family: var(--font-mono); font-size: 24px; font-weight: 600; }
+  .stat-value.amber{ color: var(--amber); }
+  .stat-value.teal{ color: var(--teal); }
+
+  .grid{ display: grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - 130px); }
+  .panel{ padding: 24px 28px; border-right: 1px solid var(--rule); }
+  .panel:last-child{ border-right: none; }
+  .panel-title{ font-size: 13px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+
+  .officer-item{
+    background: var(--panel-raised); border: 1px solid var(--rule); border-radius: 3px;
+    padding: 12px 14px; margin-bottom: 8px;
+  }
+  .officer-id{ font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .officer-coords{ font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); display:flex; justify-content:space-between; }
+
+  .violation-item{
+    border-left: 3px solid var(--amber); background: rgba(226,114,91,0.06);
+    padding: 12px 14px; margin-bottom: 8px; border-radius: 0 3px 3px 0;
+  }
+  .violation-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 4px; }
+  .violation-plate{ font-family: var(--font-mono); font-weight: 600; font-size: 14px; }
+  .violation-time{ font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
+  .violation-detail{ font-size: 13px; color: var(--text-muted); }
+  .violation-tag{ display:inline-block; font-family: var(--font-mono); font-size: 10px; color: var(--amber); border: 1px solid var(--amber-dim); padding: 1px 6px; border-radius: 2px; margin-left: 6px; }
+
+  .empty{ color: var(--text-faint); font-size: 13px; font-style: italic; padding: 12px 0; }
 </style>
 </head>
 <body>
-  <h2>ParkWatch — Supervisor Dashboard</h2>
-  <p>Status: <span id="conn-status" class="disconnected">disconnected</span></p>
-  <button onclick="connect()">Connect</button>
 
-  <div class="section">
-    <h3>Live Officer Locations</h3>
-    <div id="officers"></div>
+  <div class="topbar">
+    <div class="brand">ParkWatch <span>/ Supervisor</span></div>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <div class="conn"><span class="dot" id="dot"></span><span id="conn-text">offline</span></div>
+      <button class="btn-secondary" onclick="connect()">Connect</button>
+    </div>
   </div>
 
-  <div class="section">
-    <h3>Live Violation Feed</h3>
-    <div id="violations"></div>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Active officers</div>
+      <div class="stat-value teal" id="stat-officers">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Violations this session</div>
+      <div class="stat-value amber" id="stat-violations">0</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-title">Live officer locations</div>
+      <div id="officers"><div class="empty">No officers connected yet.</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Live violation feed</div>
+      <div id="violations"><div class="empty">No violations flagged yet.</div></div>
+    </div>
   </div>
 
 <script>
 let ws = null;
 const officerLocations = {};
+let violationCount = 0;
 
-function connect() {
+function setConn(state){
+  const dot = document.getElementById('dot');
+  const text = document.getElementById('conn-text');
+  if(state === 'live'){ dot.className = 'dot live'; text.textContent = 'connected'; }
+  else { dot.className = 'dot'; text.textContent = 'offline'; }
+}
+
+function connect(){
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/officer/supervisor_dashboard`);
+  ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/officer/supervisor_dashboard`);
 
-  ws.onopen = () => {
-    document.getElementById('conn-status').textContent = 'connected';
-    document.getElementById('conn-status').className = 'connected';
-  };
-
-  ws.onclose = () => {
-    document.getElementById('conn-status').textContent = 'disconnected';
-    document.getElementById('conn-status').className = 'disconnected';
-  };
+  ws.onopen = () => setConn('live');
+  ws.onclose = () => setConn('offline');
 
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
 
-    if (data.type === 'location.update') {
+    if(data.type === 'location.update'){
       officerLocations[data.officer_id] = data;
       renderOfficers();
     }
 
-    if (data.type === 'violation.created') {
-      const div = document.getElementById('violations');
+    if(data.type === 'violation.created'){
+      violationCount++;
+      document.getElementById('stat-violations').textContent = violationCount;
+      const container = document.getElementById('violations');
+      if(container.querySelector('.empty')) container.innerHTML = '';
       const item = document.createElement('div');
       item.className = 'violation-item';
-      item.textContent = `${new Date(data.created_at).toLocaleTimeString()} — Plate ${data.plate}, Zone ${data.zone_id} — ${data.reason}${data.duplicate ? ' (duplicate)' : ''} — flagged by ${data.officer_id}`;
-      div.prepend(item);
+      item.innerHTML = `
+        <div class="violation-top">
+          <span class="violation-plate">${data.plate}</span>
+          <span class="violation-time">${new Date(data.created_at).toLocaleTimeString([], {hour12:false})}</span>
+        </div>
+        <div class="violation-detail">Zone ${data.zone_id} · ${data.reason.replace(/_/g, ' ')} · flagged by ${data.officer_id}${data.duplicate ? '<span class="violation-tag">DUPLICATE</span>' : ''}</div>
+      `;
+      container.prepend(item);
     }
   };
 }
 
-function renderOfficers() {
-  const div = document.getElementById('officers');
-  div.innerHTML = '';
-  for (const id in officerLocations) {
+function renderOfficers(){
+  const container = document.getElementById('officers');
+  const ids = Object.keys(officerLocations);
+  document.getElementById('stat-officers').textContent = ids.length;
+  if(ids.length === 0){ container.innerHTML = '<div class="empty">No officers connected yet.</div>'; return; }
+  container.innerHTML = '';
+  ids.forEach(id => {
     const loc = officerLocations[id];
     const item = document.createElement('div');
     item.className = 'officer-item';
-    item.innerHTML = `<span>${id}</span><span>${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)} — ${new Date(loc.timestamp).toLocaleTimeString()}</span>`;
-    div.appendChild(item);
-  }
+    item.innerHTML = `
+      <div class="officer-id">${id}</div>
+      <div class="officer-coords">
+        <span>${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}</span>
+        <span>${new Date(loc.timestamp).toLocaleTimeString([], {hour12:false})}</span>
+      </div>
+    `;
+    container.appendChild(item);
+  });
 }
 </script>
 </body>
