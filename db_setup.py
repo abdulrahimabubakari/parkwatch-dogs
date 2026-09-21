@@ -51,9 +51,7 @@ print("Schema created.")
 
 # --- Seed zones ---
 zone_names = ["Lot A - Main Campus", "Lot B - Residence Halls", "Lot C - Athletics", "Lot D - Visitor", "Lot E - Faculty"]
-cur.execute("DELETE FROM violations")
-cur.execute("DELETE FROM permits")
-cur.execute("DELETE FROM zones")
+cur.execute("TRUNCATE TABLE violations, permits, zones RESTART IDENTITY CASCADE")
 conn.commit()
 
 zone_ids = []
