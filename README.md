@@ -47,6 +47,14 @@ Before/after, 15 concurrent officers against the live deployment:
 
 A long-lived Redis client silently failed after Upstash closed an idle connection, causing every subsequent publish to fail with no visible error. Fixed with health_check_interval, socket_keepalive, and an automatic one-time retry on publish failure.
 
+### 4. Foreign key violation from database ID drift across reseeds
+
+Running db_setup.py multiple times during development caused zone IDs to drift upward (DELETE does not reset PostgreSQL's auto-increment sequence). A stale "zone 1" reference in test data no longer matched any real zone, causing every check against it to fail at the violation-insert step with a ForeignKeyViolation - which threw an unhandled exception mid-request and eventually closed the WebSocket connection, making the failure look like a connection bug rather than a data bug.
+
+Diagnosed directly from Render's live logs by tracing the exact exception and confirming the mismatch with a direct database query, rather than guessing from symptoms alone.
+
+**Fix:** changed db_setup.py to use TRUNCATE TABLE ... RESTART IDENTITY CASCADE instead of separate DELETE statements, so every reseed reliably resets to the same starting IDs.
+
 ## Known Limitations (Honest Ones)
 
 - **No connection pooling** - every database call opens a fresh connection. The next real optimization would be a connection pool (e.g. psycopg2.pool or moving to an async driver like asyncpg), which would likely cut response times substantially under load.
